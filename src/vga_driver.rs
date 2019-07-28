@@ -1,6 +1,25 @@
 use core::fmt::Error as FmtError;
 use core::fmt::Write;
+use lazy_static::lazy_static;
+use spin::Mutex;
 use volatile::Volatile;
+
+lazy_static! {
+    pub static ref SCREEN: Mutex<VgaScreen> = Mutex::new(VgaScreen::new());
+}
+
+#[macro_export]
+macro_rules! print {
+    ($($args:tt)*) => {
+        $crate::vga_driver::SCREEN.lock().write_fmt(format_args!($($args)*)).unwrap()
+    };
+}
+
+#[macro_export]
+macro_rules! println {
+    () => (print!("\n"));
+    ($($args:tt)*) => (print!("{}\n", format_args!($($args)*)));
+}
 
 const BUFFER_WIDTH: usize = 80;
 const BUFFER_HEIGHT: usize = 25;
@@ -12,6 +31,7 @@ struct Position {
     y: usize,
 }
 
+#[allow(dead_code)]
 #[derive(Copy, Clone)]
 struct VgaCharacter {
     codepoint: u8,
@@ -34,7 +54,7 @@ pub struct VgaScreen {
 }
 
 impl VgaScreen {
-    pub fn new() -> VgaScreen {
+    fn new() -> VgaScreen {
         VgaScreen {
             cursor: Position { x: 0, y: 0 },
             buffer: unsafe { &mut *(BUFFER_ADDRESS as *mut VgaBuffer) },
