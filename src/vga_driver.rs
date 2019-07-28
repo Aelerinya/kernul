@@ -1,5 +1,6 @@
 use core::fmt::Error as FmtError;
 use core::fmt::Write;
+use volatile::Volatile;
 
 const BUFFER_WIDTH: usize = 80;
 const BUFFER_HEIGHT: usize = 25;
@@ -24,7 +25,7 @@ impl VgaCharacter {
     };
 }
 
-type VgaBuffer = [[VgaCharacter; BUFFER_WIDTH]; BUFFER_HEIGHT];
+type VgaBuffer = [[Volatile<VgaCharacter>; BUFFER_WIDTH]; BUFFER_HEIGHT];
 
 /// Object that manages the VgaBuffer as a common terminal
 pub struct VgaScreen {
@@ -44,10 +45,10 @@ impl VgaScreen {
         match c {
             // Write character and move cursor forward
             ' '..='~' => {
-                self.buffer[self.cursor.y][self.cursor.x] = VgaCharacter {
+                self.buffer[self.cursor.y][self.cursor.x].write(VgaCharacter {
                     codepoint: c as u8,
                     style: DEFAULT_STYLE,
-                };
+                });
                 self.cursor.x += 1;
                 if self.cursor.x >= BUFFER_WIDTH {
                     self.cursor.x = 0;
@@ -76,7 +77,7 @@ impl VgaScreen {
                     } else {
                         self.cursor.x -= 1;
                     }
-                    self.buffer[self.cursor.y][self.cursor.x].codepoint = ' ' as u8;
+                    self.buffer[self.cursor.y][self.cursor.x].write(VgaCharacter::EMPTY);
                 }
             }
             // \t: Align the cursor on 4 character columns
@@ -86,7 +87,7 @@ impl VgaScreen {
                     next_stop = BUFFER_WIDTH - 1;
                 }
                 for x in self.cursor.x..next_stop {
-                    self.buffer[self.cursor.y][x].codepoint = ' ' as u8;
+                    self.buffer[self.cursor.y][x].write(VgaCharacter::EMPTY);
                 }
                 self.cursor.x = next_stop;
             }
@@ -103,11 +104,11 @@ impl VgaScreen {
     fn scroll(&mut self) {
         for line in 0..(BUFFER_HEIGHT - 1) {
             for column in 0..BUFFER_WIDTH {
-                self.buffer[line][column] = self.buffer[line + 1][column];
+                self.buffer[line][column].write(self.buffer[line + 1][column].read());
             }
         }
         for c in self.buffer[BUFFER_HEIGHT - 1].iter_mut() {
-            *c = VgaCharacter::EMPTY;
+            c.write(VgaCharacter::EMPTY);
         }
     }
 }
