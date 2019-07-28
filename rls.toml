@@ -1,3 +1,0 @@
-target = "x86_kernul.json"
-sysroot = "target/sysroot"
-all_targets = false
