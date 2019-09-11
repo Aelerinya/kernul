@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 
 bitflags! {
     /// Bit flags describing the access permissions of a data segment
-    pub struct GdtAccess: u8 {
+    struct GdtAccess: u8 {
         const PRESENT = 0b10000000;
         const USER_RING = 0b01100000;
         const CODE_SEGMENT = 0b00011000;
@@ -25,7 +25,7 @@ impl From<u8> for GdtAccess {
 
 bitflags! {
     /// Various flags of a data segment: granularity and size
-    pub struct GdtFlags: u8 {
+    struct GdtFlags: u8 {
         const PAGE_GRANULARITY = 0b1000;
         const PROTECTED_MODE = 0b0100;
         const LONG_MODE = 0b0010;
@@ -41,7 +41,8 @@ bitfield! {
     /// Structure describing a entry in the Global Descriptor Table (GDT)
     /// It contains the base of the segment, its size (limit), its access permissions and flags
     #[derive(Clone, Copy)]
-    pub struct GdtEntry(u64);
+    #[repr(transparent)]
+    struct GdtEntry(u64);
     impl Debug;
     u16, limit_low, set_limit_low: 15, 0;
     u16, base_low, set_base_low: 31, 16;
@@ -54,13 +55,13 @@ bitfield! {
 
 /// Error returned when a GDT entry is malformed
 #[derive(Debug)]
-pub enum GdtError {
+enum GdtError {
     InvalidLimit,
 }
 
 impl GdtEntry {
     /// Creates a new GDT entry
-    pub fn new(
+    fn new(
         base: u64,
         limit: u32,
         mut access: GdtAccess,
@@ -93,18 +94,36 @@ impl GdtEntry {
     }
 }
 
+const GDT_ENTRIES_COUNT: usize = 4;
 lazy_static! {
-    static ref GDT_TABLE: [GdtEntry; 4] = [
+    #[derive(Debug)]
+    static ref GDT_TABLE: [GdtEntry; GDT_ENTRIES_COUNT] = [
         // Null entry
         GdtEntry::new(0, 0, GdtAccess::empty(), GdtFlags::PROTECTED_MODE).unwrap(),
         // Code segment
-        GdtEntry::new(0, 0xFFFFF, GdtAccess::CODE_SEGMENT | GdtAccess::CODE_READABLE, GdtFlags::PROTECTED_MODE).unwrap(),
+        GdtEntry::new(0, 0xFFFFF,
+            GdtAccess::CODE_SEGMENT | GdtAccess::CODE_READABLE,
+            GdtFlags::PROTECTED_MODE | GdtFlags::PAGE_GRANULARITY).unwrap(),
         // Data segment
-        GdtEntry::new(0, 0xFFFFF, GdtAccess::DATA_SEGMENT | GdtAccess::DATA_WRITABLE, GdtFlags::PROTECTED_MODE).unwrap(),
+        GdtEntry::new(0, 0xFFFFF,
+            GdtAccess::DATA_SEGMENT | GdtAccess::DATA_WRITABLE,
+            GdtFlags::PROTECTED_MODE | GdtFlags::PAGE_GRANULARITY).unwrap(),
         // TSS segment
         GdtEntry::new(0, 0, GdtAccess::ACCESSED, GdtFlags::PROTECTED_MODE).unwrap()
     ];
 }
 
+// Assembly routine loading the GDT table
+extern "C" {
+    fn load_GDT(offset: u32, limit: u16);
+}
+
 /// Initializes the GDT table and loads it into memory
-fn init_gdt() {}
+pub fn init_gdt() {
+    unsafe {
+        load_GDT(
+            (&*GDT_TABLE as *const [GdtEntry; GDT_ENTRIES_COUNT]) as u32,
+            core::mem::size_of_val(&*GDT_TABLE) as u16,
+        )
+    }
+}
