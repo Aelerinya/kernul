@@ -2,6 +2,7 @@
 #![no_main]
 
 mod gdt;
+mod interrupts;
 mod vga_driver;
 
 use core::fmt::Write;
@@ -15,6 +16,8 @@ pub extern "C" fn kernel_main() {
 
     println!("Initializing GDT (Global Descriptor Table)");
     gdt::init_gdt();
+    println!("Initializing IDT (Interrupt Descriptor Table)");
+    interrupts::idt::init_idt();
     panic!("Test panic");
 }
 
