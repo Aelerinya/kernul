@@ -4,3 +4,4 @@
 *.iso
 kernul
 rls.toml
+local_tests
