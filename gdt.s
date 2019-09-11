@@ -18,6 +18,7 @@ load_GDT:
   mov %eax, (0x2 + GDT_description)
   # Move the size of the table to GDT_description.limit
   mov 0x8(%esp), %eax
+  sub $0x1, %eax
   mov %ax, (GDT_description)
   # Load the GDT table
   lgdt (GDT_description)
